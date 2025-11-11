@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
 
-export function orbitControls(scene, camera, rendererDom, player, plane) {
+export function orbitControls(camera, rendererDom, player) {
     let yaw=0.7, pitch=2; 
     const rotateSpeed = 0.5;
     const controls = new OrbitControls(camera, rendererDom);

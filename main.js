@@ -14,8 +14,8 @@ const lights = addLights(scene);
 const { plane, size: planeSize } = addGround(scene);
 
 const player = new Player(scene);
-const controls = orbitControls(scene, camera, renderer.domElement, player, plane);
-addTrees(scene, 300, planeSize);
+const controls = orbitControls(camera, renderer.domElement, player);
+const trees = addTrees(scene, 300, planeSize);
 const overlay = createOverlay();
 
 var keys = {};
@@ -27,8 +27,10 @@ addEventListener('keyup', e=>{
 });
 
 addEventListener('contextmenu', e=>{
+    const tree = trees.raycast(camera, e.clientX, e.clientY);
+    console.log(tree);
     overlay.createMenu(e, e.clientX-100,e.clientY-50,200,200, ["chop", "go"], v => {
-        if(v == 'chop') console.log("chop");
+        if(v == 'chop') trees.startTreeFall(camera, tree);
         if(v == 'go') console.log("go");
     });
 });
@@ -73,6 +75,7 @@ function animate(){
     player.update();
     lights.updateShadowRegion(camera);
     controls.update(keys, dt); 
+    trees.updateFallingTrees(dt);
     renderer.clear(true, true, true);
     renderer.render(scene, camera);
     overlay.render(renderer);

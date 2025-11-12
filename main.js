@@ -13,7 +13,7 @@ const renderer = createRenderer();
 const scene = createScene();
 const lights = addLights(scene);
 const camera = new OrbitCamera(scene);
-const terrain = new SplatTerrain(scene, renderer, PLANE_SIZE, PLANE_SIZE, 200);
+const terrain = new SplatTerrain(scene, PLANE_SIZE, 200);
 const trees = addTrees(scene, terrain, 300, PLANE_SIZE);
 
 const player = new Player(scene, terrain, trees);

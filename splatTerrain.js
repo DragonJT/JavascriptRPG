@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {makeColorCanvasTexture, makeSplatCanvas } from './canvasTextures.js';
+import {makeColorTexture, makeSplatCanvas } from './canvasTextures.js';
 
 function makeStandaloneSplatTerrainMat() {
   const uniforms = {
@@ -56,16 +56,17 @@ function makeStandaloneSplatTerrainMat() {
     uniform float uMarkerRadius;
 
     void main() {
-      vec3 c0 = texture2D(uTex0, vUv).rgb;
-      vec3 c1 = texture2D(uTex1, vUv).rgb;
-      vec3 c2 = texture2D(uTex2, vUv).rgb;
-      vec3 c3 = texture2D(uTex3, vUv).rgb;
-
-      vec3 col= c0;
-      if(length(vWorldPos.xz - uMarkerPos.xz) < uMarkerRadius){
-        col = vec3(1,1,1);
-      }
-      gl_FragColor = vec4(col, 1.0);
+        float scale = 10.0;
+        vec4 splat = texture2D(uSplatMap, vUv);
+        vec3 c0 = texture2D(uTex0, vUv * scale).rgb;
+        vec3 c1 = texture2D(uTex1, vUv * scale).rgb;
+        vec3 c2 = texture2D(uTex2, vUv * scale).rgb;
+        vec3 c3 = texture2D(uTex3, vUv * scale).rgb;
+        vec3 col = c0*splat.r + c1*splat.g + c2*splat.b + c3*splat.a;
+        if(length(vWorldPos.xz - uMarkerPos.xz) < uMarkerRadius){
+            col = vec3(1,1,1);
+        }
+        gl_FragColor = vec4(col.r, col.g, col.b, 1.0);
     }
   `;
 
@@ -80,29 +81,25 @@ function makeStandaloneSplatTerrainMat() {
 
 export class SplatTerrain
 {
-    constructor(scene, renderer, width, depth, segments){
+    constructor(scene, size, segments){
+        this.size = size;
         // Slight grid so you can see tiling; set withGrid:false for pure solid.
-        const texGreen = makeColorCanvasTexture({ color: '#3abf3a', withGrid: true });
-        const texRed   = makeColorCanvasTexture({ color: '#cc4444', withGrid: true });
-        const texBrown = makeColorCanvasTexture({ color: '#8b5a2b', withGrid: true });
-        const texWhite = makeColorCanvasTexture({ color: '#ffffff', withGrid: true });
+        const tex1 = makeColorTexture(255,0,0,512);
+        const tex2 = makeColorTexture(0,255,0,512);
+        const tex3 = makeColorTexture(0,0,255,512);
+        const tex4 = makeColorTexture(0,255,128,512);
 
         // The control (splat) map:
-        const splat = makeSplatCanvas({ size: 512, cell: 64 });
-
-        // optional: a touch of anisotropy if your GPU allows it
-        const maxAniso = renderer.capabilities.getMaxAnisotropy?.() ?? 8;
-        [texGreen, texRed, texBrown, texWhite].forEach(t => t.anisotropy = maxAniso);
-
+        const splat = makeSplatCanvas(512, this);
         this.mat = makeStandaloneSplatTerrainMat();
 
         this.mat.uniforms.uSplatMap.value = splat;
-        this.mat.uniforms.uTex0.value = texGreen;
-        this.mat.uniforms.uTex1.value = texRed;
-        this.mat.uniforms.uTex2.value = texBrown;
-        this.mat.uniforms.uTex3.value = texWhite;
+        this.mat.uniforms.uTex0.value = tex1;
+        this.mat.uniforms.uTex1.value = tex2;
+        this.mat.uniforms.uTex2.value = tex3;
+        this.mat.uniforms.uTex3.value = tex4;
         
-        const geom = new THREE.PlaneGeometry(width, depth, segments, segments);
+        const geom = new THREE.PlaneGeometry(size, size, segments, segments);
         geom.rotateX(-Math.PI / 2);
 
         // Displace vertices

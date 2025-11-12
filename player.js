@@ -10,7 +10,7 @@ export class Player {
         this.animationT = 0;
 
         this.humanoid = createHumanoid({skinColor : 0xeeccccc, shirtColor : 0xff0000, pantsColor : 0x000099, shoeColor : 0x222222, scale : 0.4});
-        this.humanoid.position.set(0,0,0);
+        this.humanoid.position.set(0,terrain.heightFn(0,0),0);
         scene.add(this.humanoid);
 
         this.turnSpeed = 0.1;

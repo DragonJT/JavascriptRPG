@@ -4,7 +4,7 @@ export class OrbitCamera{
     constructor(scene){
         this.zoom = 8; 
         this.yaw = 0.7;
-        this.pitch = 2;
+        this.pitch = 0.4;
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); 
         scene.add(this.camera);
     }

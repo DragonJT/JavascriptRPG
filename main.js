@@ -1,20 +1,22 @@
 
 import * as THREE from 'three';
 
-import { createRenderer, createScene, addLights, addGround } from './world.js';
+import { createRenderer, createScene, addLights } from './world.js';
 import { Player } from './player.js';
 import { OrbitCamera } from './orbitCamera.js';
 import { addTrees } from './trees.js';
 import { createOverlay } from './overlay.js';
+import { SplatTerrain } from './splatTerrain.js';
 
+const PLANE_SIZE = 200;
 const renderer = createRenderer();
 const scene = createScene();
-const camera = new OrbitCamera(scene);
 const lights = addLights(scene);
-const { plane, size: planeSize } = addGround(scene);
-const trees = addTrees(scene, 300, planeSize);
+const camera = new OrbitCamera(scene);
+const terrain = new SplatTerrain(scene, renderer, PLANE_SIZE, PLANE_SIZE, 200);
+const trees = addTrees(scene, terrain, 300, PLANE_SIZE);
 
-const player = new Player(scene, trees);
+const player = new Player(scene, terrain, trees);
 const overlay = createOverlay();
 
 var keys = {};
@@ -48,7 +50,7 @@ addEventListener('pointerdown', e=>{
     if (e.button !== 0 || e.used) return;
     ndc.set((e.clientX/innerWidth)*2-1, -(e.clientY/innerHeight)*2+1);
     raycaster.setFromCamera(ndc, camera.camera);
-    const hit = raycaster.intersectObject(plane, false)[0];
+    const hit = raycaster.intersectObject(terrain.terrain, false)[0];
     if (!hit) return;
     player.setTargetVec3(hit.point);
 });

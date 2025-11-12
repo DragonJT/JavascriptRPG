@@ -87,8 +87,8 @@ function updateFallingTrees(dt) {
 
         const theta = easeOutCubic(T.fall.t) * T.fall.angle;
         _Q.setFromAxisAngle(T.fall.axis, theta);
-        _T.makeTranslation(T.position.x, 0, T.position.z);
-        _Ti.makeTranslation(-T.position.x, 0, -T.position.z);
+        _T.makeTranslation(T.position.x, T.position.y, T.position.z);
+        _Ti.makeTranslation(-T.position.x, -T.position.y, -T.position.z);
         _R.makeRotationFromQuaternion(_Q);
         _W.multiplyMatrices(_T, _R).multiply(_Ti);
 
@@ -124,7 +124,7 @@ function updateFallingTrees(dt) {
     }
 }
 
-export function addTrees(scene, count = 300, planeSize = 200) {
+export function addTrees(scene, terrain, count = 300, planeSize = 200) {
     const half = planeSize * 0.5 - 3;
     const rulesClassic = {
         'F': [
@@ -144,7 +144,8 @@ export function addTrees(scene, count = 300, planeSize = 200) {
     for (let i = 0; i < count; i++) {
         const x = THREE.MathUtils.randFloat(-half, half);
         const z = THREE.MathUtils.randFloat(-half, half);
-        TREES.push(buildLSystemTree(new THREE.Vector3(x, 0, z), leaves, branches, fruits, 'F', rulesLeafy, 4, 28, 1.1, 0.3, 0.84, 3));
+        const y = terrain.heightFn(x,z);
+        TREES.push(buildLSystemTree(new THREE.Vector3(x, y, z), leaves, branches, fruits, 'F', rulesLeafy, 4, 28, 1.1, 0.3, 0.84, 3));
     }
 
     const branchGeo = new THREE.CylinderGeometry(1, 1, 1, 8);

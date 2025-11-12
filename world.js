@@ -1,8 +1,7 @@
 
 import * as THREE from 'three';
 
-export function createRenderer()
-{
+export function createRenderer(){
     const renderer = new THREE.WebGLRenderer({ antialias:true });
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
     renderer.setSize(innerWidth, innerHeight);
@@ -12,15 +11,13 @@ export function createRenderer()
     return renderer;
 }
 
-export function createScene()
-{
+export function createScene(){
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x13151a);
     return scene;
 }
 
-export function addLights(scene)
-{
+export function addLights(scene){
     const light = new THREE.DirectionalLight(0xffffff, 1.5);
     light.position.set(5,10,3);
     const size = 60;
@@ -33,7 +30,7 @@ export function addLights(scene)
     light.shadow.camera.top = size;
     light.shadow.camera.bottom = -size;
     scene.add(light);
-
+    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
     function updateShadowRegion(camera) {
         const s = 50; // half-size of the shadow box around the camera
         const cam = light.shadow.camera;
@@ -52,22 +49,5 @@ export function addLights(scene)
     }
     return {updateShadowRegion};
 }
-
-export function addGround(scene)
-{
-    const PLANE_SIZE = 150;
-    const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 1, 1);
-    planeGeo.rotateX(-Math.PI/2); // lie on XZ
-    const planeMat = new THREE.MeshStandardMaterial({ color:0x2a2f3a, metalness:0, roughness:1 });
-    const plane = new THREE.Mesh(planeGeo, planeMat);
-    plane.receiveShadow = true;
-    scene.add(plane);
-
-    const grid = new THREE.GridHelper(PLANE_SIZE, PLANE_SIZE, 0x334455, 0x22303a);
-    grid.position.y = 0.001; 
-    scene.add(grid);
-    return { plane, size:PLANE_SIZE };
-}
-
 
     

@@ -39,14 +39,14 @@ export class Player {
         this.target.kind = 'tree';
         this.target.tree = tree;
         this.ring.visible = true;
-        this.target.radius = tree.userData.trunkRadius + 1;
+        this.target.radius = tree.trunkRadius + 1;
     }
 
     update() {
         if(this.target.kind == 'none') return;
         if(this.target.kind == 'tree'){
-            this.target.position.x = this.target.tree.position.x;
-            this.target.position.z = this.target.tree.position.z;
+            this.target.position.x = this.target.tree.x;
+            this.target.position.z = this.target.tree.z;
         } 
         this.ring.position.x = this.target.position.x;
         this.ring.position.z = this.target.position.z;
@@ -64,7 +64,7 @@ export class Player {
             this.mesh.rotation.y += deltaYaw * this.turnSpeed;
         }
         else{
-            if(this.target.kind == 'tree' && !this.target.tree.userData.falling){
+            if(this.target.kind == 'tree' && !this.target.tree.falling){
                 this.trees.startTreeFall(this, this.target.tree);
                 this.target.kind = 'none';
             }

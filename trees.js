@@ -1,48 +1,10 @@
 
 import * as THREE from 'three';
+import { buildLSystemTree } from './lsystemTree.js';
 
-const TREES = [];           // keep references to trees
-const TREE_HIT_TARGETS = []; // meshes we raycast against (trunks + crowns)
-
-function createTree(x, z, trunkHeight=4, trunkRadius=0.35, crownRadius=1.3) {
-    const group = new THREE.Group();
-    group.position.set(x, 0, z);
-
-    // trunk: positioned so its base sits at y=0
-    const trunkGeo = new THREE.CylinderGeometry(trunkRadius, trunkRadius * 1.1, trunkHeight, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-    trunk.castShadow = true;
-    trunk.receiveShadow = true;
-    trunk.position.y = trunkHeight / 2;
-
-    // crown
-    const crownGeo = new THREE.SphereGeometry(crownRadius, 16, 12);
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
-    const crown = new THREE.Mesh(crownGeo, crownMat);
-    crown.castShadow = true;
-    crown.position.y = trunkHeight + crownRadius * 0.7;
-
-    group.add(trunk, crown);
-
-    // userData for gameplay state
-    group.userData = {
-        trunkRadius,
-        type: 'tree',
-        health: 3,           // hits required
-        falling: false,
-        fall: null,          // { t, duration, fromQuat, toQuat }
-        dead: false
-    };
-
-    // link child->root for easy lookup after raycast
-    trunk.userData.treeRoot = group;
-    crown.userData.treeRoot = group;
-
-    TREES.push(group);
-    TREE_HIT_TARGETS.push(trunk, crown);
-    return group;
-}
+const TREES = [];
+const TREE_IDS = []
+var inst = undefined;
 
 const raycaster = new THREE.Raycaster();
 const aimNDC = new THREE.Vector2(0, 0); // center of screen
@@ -50,10 +12,9 @@ const aimNDC = new THREE.Vector2(0, 0); // center of screen
 function raycast(camera, mousex, mousey) {
     aimNDC.set((mousex/innerWidth)*2-1, -(mousey/innerHeight)*2+1);
     raycaster.setFromCamera(aimNDC, camera);
-    const hits = raycaster.intersectObjects(TREE_HIT_TARGETS, false);
+    const hits = raycaster.intersectObject(inst, false);
     if (!hits.length) return null;
-    const hit = hits[0];
-    return hit.object.userData.treeRoot || null;
+    return TREE_IDS[hits[0].instanceId];
 }
 
 
@@ -62,67 +23,109 @@ const tmpDir = new THREE.Vector3();
 const tmpAxis = new THREE.Vector3();
 
 function startTreeFall(player, tree) {
-    tmpDir.x = tree.position.x - player.mesh.position.x;
-    tmpDir.z = tree.position.z - player.mesh.position.z;
+    tmpDir.x = tree.x - player.mesh.position.x;
+    tmpDir.z = tree.z - player.mesh.position.z;
     tmpDir.y = 0;
     if (tmpDir.lengthSq() < 1e-6) tmpDir.set(0,0,-1);
     tmpDir.normalize();
+    const axis = tmpAxis.crossVectors(Y_UP, tmpDir).normalize();
 
-    // rotate toward -tmpDir or +tmpDir; pick whichever you prefer
-    const fallDir = tmpDir.clone(); // falls forward relative to camera look
-
-    // rotation axis is up x fallDir
-    tmpAxis.crossVectors(Y_UP, fallDir).normalize();
-
-    const fromQuat = tree.quaternion.clone();
-    const toQuat = fromQuat.clone().multiply(
-        new THREE.Quaternion().setFromAxisAngle(tmpAxis, Math.PI / 2) // 90 degrees
-    );
-
-    tree.userData.falling = true;
-    tree.userData.fall = {
+    tree.falling = true;
+    tree.fall = {
         t: 0,
         duration: 2, // seconds
-        fromQuat,
-        toQuat
+        angle:(Math.PI / 2) * 0.7,
+        axis:axis.clone(),
     };
 }
 
+const _W = new THREE.Matrix4(); 
+const _R = new THREE.Matrix4();
+const _T  = new THREE.Matrix4();
+const _Ti = new THREE.Matrix4();
+const _Q  = new THREE.Quaternion();
+
+function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
+
 function updateFallingTrees(dt) {
-  for (const tree of TREES) {
-    if (!tree.userData.falling) continue;
-    const f = tree.userData.fall;
-    f.t = Math.min(1, f.t + dt / f.duration);
-    tree.quaternion.slerpQuaternions(f.fromQuat, f.toQuat, f.t);
+    var i = 0;
+    for (const T of TREES) {
+        if (!T.falling || T.dead){
+            i+=T.branches.length;
+            continue;
+        } 
+        //console.log(T);
+        T.fall.t = Math.min(1, T.fall.t + dt / T.fall.duration);
 
-    // optional: slight forward slide as it falls
-    // tree.position.addScaledVector(new THREE.Vector3().copy(tmpDir).normalize(), dt * 0.25);
+        const theta = easeOutCubic(T.fall.t) * T.fall.angle;
+        _Q.setFromAxisAngle(T.fall.axis, theta);
 
-    if (f.t >= 1) {
-      tree.userData.falling = false;
-      tree.userData.dead = true;
+        // W = T(pivot) * R(axis,theta) * T(-pivot)
+        _T.makeTranslation(T.x, 0, T.z);
+        _Ti.makeTranslation(-T.x, 0, -T.z);
+        _R.makeRotationFromQuaternion(_Q);
+        _W.multiplyMatrices(_T, _R).multiply(_Ti);
 
-      // disable future hits
-      tree.children.forEach(child => child.raycast = () => {});
-      // or remove from TREE_HIT_TARGETS if you prefer:
-      // for (const child of tree.children) {
-      //   const i = TREE_HIT_TARGETS.indexOf(child);
-      //   if (i >= 0) TREE_HIT_TARGETS.splice(i, 1);
-      // }
+        for(var b of T.branches){
+            const Mout = _W.clone().multiply(b);
+            inst.setMatrixAt(i, Mout);
+            i++;
+        }
+        inst.instanceMatrix.needsUpdate = true;
 
-      // TODO: spawn logs/loot, play sound, schedule despawn, etc.
+        if (T.fall.t >= 1) {
+            T.dead = true;
+            T.fall = null;
+        }
     }
-  }
 }
 
 export function addTrees(scene, count = 300, planeSize = 200) {
-    const half = planeSize * 0.5 - 3
+    const half = planeSize * 0.5 - 3;
+    const rulesClassic = {
+        'F': [
+            { p: 0.6, out: 'F[+F]F[-F]F R' },
+            { p: 0.4, out: 'F[+F]F R F[-F]F' }
+        ],
+        'R': [{ p: 1, out: 'R' }], 
+    };
+
+    const rulesLeafy = {
+        'F': [
+            { p: 0.5, out: 'F[+F]R L' },
+            { p: 0.5, out: 'F[-F]R L' }
+        ]
+    };
+
     for (let i = 0; i < count; i++) {
         const x = THREE.MathUtils.randFloat(-half, half);
         const z = THREE.MathUtils.randFloat(-half, half);
-
-        var tree = createTree(x,z);
-        scene.add(tree);
+        var trunkRadius = 0.3;
+        var branches = buildLSystemTree( x, z, 'F', rulesLeafy, 4, 28, 1.1, trunkRadius, 0.84, true);
+        TREES.push({x, z, branches, falling:false, dead:false, trunkRadius});
     }
+
+    var branchesLength = 0;
+    for(var t of TREES){
+        branchesLength += t.branches.length;
+    }
+
+    const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
+    inst = new THREE.InstancedMesh(cylGeo, mat, branchesLength);
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    
+    var i = 0;
+    for (var t of TREES) {
+        for(var b of t.branches){
+            inst.setMatrixAt(i, b);
+            TREE_IDS.push(t);
+            i++;
+        }
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    scene.add(inst);
     return {raycast, startTreeFall, updateFallingTrees};
 }

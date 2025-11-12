@@ -19,12 +19,6 @@ export function createScene()
     return scene;
 }
 
-export function createCamera(){
-    const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
-    camera.position.set(10, 8, 12);
-    return camera;
-}
-
 export function addLights(scene)
 {
     const light = new THREE.DirectionalLight(0xffffff, 1.5);

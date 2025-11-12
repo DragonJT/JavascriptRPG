@@ -1,18 +1,19 @@
 import * as THREE from 'three';
+import { createHumanoid, animateHumanoidWalk } from './Humanoid.js';
 
 export class Player {
 
     constructor(scene, trees) {
         this.trees = trees;
         this.size = { w: 0.5, h: 1.5, d: 0.5 };
-        const geo = new THREE.BoxGeometry(this.size.w, this.size.h, this.size.d);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x7fb0ff });
-        this.mesh = new THREE.Mesh(geo, mat);
-        this.mesh.castShadow = true;
-        this.mesh.position.set(0, this.size.h / 2, 0);
-        scene.add(this.mesh);
+        this.animationT = 0;
+
+        this.humanoid = createHumanoid({skinColor : 0xeeccccc, shirtColor : 0xff0000, pantsColor : 0x000099, shoeColor : 0x222222, scale : 0.4});
+        this.humanoid.position.set(0,0,0);
+        scene.add(this.humanoid);
+
         this.turnSpeed = 0.1;
-        this.target = {kind:'none', position:new THREE.Vector3(0, this.size.h/2, 0), radius:0};
+        this.target = {kind:'none', position:new THREE.Vector3(0, 0, 0), radius:0};
 
         const ringGeo = new THREE.RingGeometry(0.25, 0.35, 32);
         ringGeo.rotateX(-Math.PI/2);
@@ -43,25 +44,24 @@ export class Player {
     }
 
     update() {
+        animateHumanoidWalk(this.humanoid, this.animationT, 0.5, 0.6);
         if(this.target.kind == 'none') return;
         if(this.target.kind == 'tree'){
-            this.target.position.x = this.target.tree.position.x;
-            this.target.position.z = this.target.tree.position.z;
+            this.target.position.copy(this.target.tree.position);
         } 
-        this.ring.position.x = this.target.position.x;
-        this.ring.position.z = this.target.position.z;
+        this.ring.position.copy(this.target.position);
 
-        const toTarget = this.target.position.clone().sub(this.mesh.position);
+        const toTarget = this.target.position.clone().sub(this.humanoid.position);
         const dist = toTarget.length();
+        this.animationT += dist * 0.1;
         if (dist > this.target.radius) {
             const dir = toTarget.normalize();
             const speed = 0.05 * dist; 
-            this.mesh.position.addScaledVector(dir, speed);
-
+            this.humanoid.position.addScaledVector(dir, speed);
             const desiredYaw = Math.atan2(dir.x, dir.z);
-            const currentYaw = this.mesh.rotation.y;
+            const currentYaw = this.humanoid.rotation.y;
             const deltaYaw = ((desiredYaw - currentYaw + Math.PI) % (2 * Math.PI)) - Math.PI;
-            this.mesh.rotation.y += deltaYaw * this.turnSpeed;
+            this.humanoid.rotation.y += deltaYaw * this.turnSpeed;
         }
         else{
             if(this.target.kind == 'tree' && !this.target.tree.falling){

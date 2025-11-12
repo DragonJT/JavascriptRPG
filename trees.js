@@ -5,42 +5,43 @@ const TREES = [];           // keep references to trees
 const TREE_HIT_TARGETS = []; // meshes we raycast against (trunks + crowns)
 
 function createTree(x, z, trunkHeight=4, trunkRadius=0.35, crownRadius=1.3) {
-  const group = new THREE.Group();
-  group.position.set(x, 0, z);
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
 
-  // trunk: positioned so its base sits at y=0
-  const trunkGeo = new THREE.CylinderGeometry(trunkRadius, trunkRadius * 1.1, trunkHeight, 8);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-  trunk.castShadow = true;
-  trunk.receiveShadow = true;
-  trunk.position.y = trunkHeight / 2;
+    // trunk: positioned so its base sits at y=0
+    const trunkGeo = new THREE.CylinderGeometry(trunkRadius, trunkRadius * 1.1, trunkHeight, 8);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
+    trunk.position.y = trunkHeight / 2;
 
-  // crown
-  const crownGeo = new THREE.SphereGeometry(crownRadius, 16, 12);
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
-  const crown = new THREE.Mesh(crownGeo, crownMat);
-  crown.castShadow = true;
-  crown.position.y = trunkHeight + crownRadius * 0.7;
+    // crown
+    const crownGeo = new THREE.SphereGeometry(crownRadius, 16, 12);
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
+    const crown = new THREE.Mesh(crownGeo, crownMat);
+    crown.castShadow = true;
+    crown.position.y = trunkHeight + crownRadius * 0.7;
 
-  group.add(trunk, crown);
+    group.add(trunk, crown);
 
-  // userData for gameplay state
-  group.userData = {
-    type: 'tree',
-    health: 3,           // hits required
-    falling: false,
-    fall: null,          // { t, duration, fromQuat, toQuat }
-    dead: false
-  };
+    // userData for gameplay state
+    group.userData = {
+        trunkRadius,
+        type: 'tree',
+        health: 3,           // hits required
+        falling: false,
+        fall: null,          // { t, duration, fromQuat, toQuat }
+        dead: false
+    };
 
-  // link child->root for easy lookup after raycast
-  trunk.userData.treeRoot = group;
-  crown.userData.treeRoot = group;
+    // link child->root for easy lookup after raycast
+    trunk.userData.treeRoot = group;
+    crown.userData.treeRoot = group;
 
-  TREES.push(group);
-  TREE_HIT_TARGETS.push(trunk, crown);
-  return group;
+    TREES.push(group);
+    TREE_HIT_TARGETS.push(trunk, crown);
+    return group;
 }
 
 const raycaster = new THREE.Raycaster();
@@ -60,9 +61,9 @@ const Y_UP = new THREE.Vector3(0,1,0);
 const tmpDir = new THREE.Vector3();
 const tmpAxis = new THREE.Vector3();
 
-function startTreeFall(camera, tree) {
-    // choose a fall direction opposite where you’re standing/looking (XZ only)
-    camera.getWorldDirection(tmpDir);
+function startTreeFall(player, tree) {
+    tmpDir.x = tree.position.x - player.mesh.position.x;
+    tmpDir.z = tree.position.z - player.mesh.position.z;
     tmpDir.y = 0;
     if (tmpDir.lengthSq() < 1e-6) tmpDir.set(0,0,-1);
     tmpDir.normalize();

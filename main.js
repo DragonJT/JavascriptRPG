@@ -12,10 +12,10 @@ const scene = createScene();
 const camera = createCamera();
 const lights = addLights(scene);
 const { plane, size: planeSize } = addGround(scene);
-
-const player = new Player(scene);
-const controls = orbitControls(camera, renderer.domElement, player);
 const trees = addTrees(scene, 300, planeSize);
+
+const player = new Player(scene, trees);
+const controls = orbitControls(camera, renderer.domElement, player);
 const overlay = createOverlay();
 
 var keys = {};
@@ -28,18 +28,11 @@ addEventListener('keyup', e=>{
 
 addEventListener('contextmenu', e=>{
     const tree = trees.raycast(camera, e.clientX, e.clientY);
-    console.log(tree);
     overlay.createMenu(e, e.clientX-100,e.clientY-50,200,200, ["chop", "go"], v => {
-        if(v == 'chop') trees.startTreeFall(camera, tree);
+        if(v == 'chop') player.setTargetTree(tree);
         if(v == 'go') console.log("go");
     });
 });
-
-const ringGeo = new THREE.RingGeometry(0.25, 0.35, 32);
-ringGeo.rotateX(-Math.PI/2);
-const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.65 }));
-ring.visible = false;
-scene.add(ring);
 
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -55,9 +48,7 @@ addEventListener('pointerdown', e=>{
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObject(plane, false)[0];
     if (!hit) return;
-    player.setTarget(hit.point);
-    ring.position.set(hit.point.x, 0.01, hit.point.z);
-    ring.visible = true;
+    player.setTargetVec3(hit.point);
 });
 
 // resize
@@ -72,7 +63,7 @@ addEventListener('resize', ()=>{
 function animate(){
     const dt = 0.16;
     requestAnimationFrame(animate);
-    player.update();
+    player.update(trees);
     lights.updateShadowRegion(camera);
     controls.update(keys, dt); 
     trees.updateFallingTrees(dt);

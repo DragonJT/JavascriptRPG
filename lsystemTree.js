@@ -51,14 +51,11 @@ function cylinderBetween(a, b, radius) {
     return m;
 }
 
-/*function makeLeaf(pos, size = 0.6) {
-  const leaf = new THREE.Mesh(LEAF_GEOM, LEAF_MAT);
-  leaf.position.copy(pos);
-  leaf.scale.setScalar(size);
-  leaf.lookAt(pos.x + (Math.random() - 0.5), pos.y + 0.5, pos.z + (Math.random() - 0.5));
-  leaf.castShadow = true;
-  return leaf;
-}*/
+function makeLeaf(pos, size = 0.6) {
+    const m = new THREE.Matrix4();
+    m.compose(pos, new THREE.Quaternion(), new THREE.Vector3(size, size, size));
+    return m;
+}
 
 // ---------- Turtle interpreter ----------
 /*
@@ -78,8 +75,7 @@ Symbols (classic):
   R : reduce radius (thinner as we go)
 */
 export function buildLSystemTree(
-    x,
-    z,
+    position,
     axiom,
     rules,
     iterations = 3,
@@ -87,23 +83,12 @@ export function buildLSystemTree(
     segmentLength = 1.2,
     baseRadius = 0.22,
     radiusDecay = 0.86,
-    leafEveryF = false, 
+    leafDistFromRoot = 2, 
 ) {
   const str = expandLSystem(axiom, rules, iterations);
 
-  const group = new THREE.Group();
-  // origin is at ground/base so your fall rotation looks natural
-  group.position.set(0, 0, 0);
-  group.userData = {
-    type: 'tree',
-    health: 4,
-    falling: false,
-    fall: null,
-    dead: false,
-  };
-
   const turtle = new THREE.Object3D();
-  turtle.position.set(x, 0, z);
+  turtle.position.copy(position);
   turtle.up.set(0, 1, 0);
   const stack = [];
 
@@ -115,7 +100,7 @@ export function buildLSystemTree(
   const end = new THREE.Vector3();
 
   const branches = [];
-  const leafMeshes = [];
+  const leaves = [];
 
   for (let i = 0; i < str.length; i++) {
     const c = str[i];
@@ -128,12 +113,8 @@ export function buildLSystemTree(
 
         branches.push(cylinderBetween(tmp, end, radius));
         
-        // optional leaf
-        if (leafEveryF && Math.random() < 0.2) {
-          //const lf = makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8));
-          //lf.userData.treeRoot = group;
-          //leafMeshes.push(lf);
-          //group.add(lf);
+        if (end.distanceTo(position) > leafDistFromRoot) {
+            leaves.push(makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8)));
         }
         break;
       }
@@ -179,10 +160,7 @@ export function buildLSystemTree(
       }
       case 'L': {
         turtle.getWorldPosition(end);
-        /*const lf = makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1));
-        lf.userData.treeRoot = group;
-        leafMeshes.push(lf);
-        group.add(lf);*/
+        leaves.push(makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1)));
         break;
       }
       default:
@@ -190,10 +168,5 @@ export function buildLSystemTree(
         break;
     }
   }
-
-  // register for raycasting
-  //for (const m of branchMeshes) TREE_HIT_TARGETS.push(m);
-  //for (const l of leafMeshes)   TREE_HIT_TARGETS.push(l);
-  //TREES.push(group);
-  return branches;
+  return {leaves, branches};
 }

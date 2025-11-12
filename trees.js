@@ -55,8 +55,8 @@ const tmpDir = new THREE.Vector3();
 const tmpAxis = new THREE.Vector3();
 
 function startTreeFall(player, tree) {
-    tmpDir.x = tree.position.x - player.mesh.position.x;
-    tmpDir.z = tree.position.z - player.mesh.position.z;
+    tmpDir.x = tree.position.x - player.humanoid.position.x;
+    tmpDir.z = tree.position.z - player.humanoid.position.z;
     tmpDir.y = 0;
     if (tmpDir.lengthSq() < 1e-6) tmpDir.set(0,0,-1);
     tmpDir.normalize();

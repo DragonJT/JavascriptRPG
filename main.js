@@ -26,6 +26,7 @@ addEventListener('keyup', e=>{
 });
 
 addEventListener('contextmenu', e=>{
+    e.preventDefault();
     const tree = trees.raycast(camera.camera, e.clientX, e.clientY);
     if(tree){
         overlay.createMenu(e, e.clientX-100,e.clientY-50,200,200, ["chop", "go"], v => {

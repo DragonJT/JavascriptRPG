@@ -49,7 +49,8 @@ export class Player {
         if(this.target.kind == 'tree'){
             this.target.position.copy(this.target.tree.position);
         } 
-        this.ring.position.copy(this.target.position);
+        this.ring.position.x = this.target.position.x;
+        this.ring.position.z = this.target.position.z;
 
         const toTarget = this.target.position.clone().sub(this.humanoid.position);
         const dist = toTarget.length();

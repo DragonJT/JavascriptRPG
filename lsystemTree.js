@@ -51,10 +51,30 @@ function cylinderBetween(a, b, radius) {
     return m;
 }
 
-function makeLeaf(pos, size = 0.6) {
+function makeMatrix(pos, size) {
     const m = new THREE.Matrix4();
     m.compose(pos, new THREE.Quaternion(), new THREE.Vector3(size, size, size));
     return m;
+}
+
+function randomPointsOnSphere(center, radius, count) {
+  const pts = [];
+  const p = new THREE.Vector3();
+
+  for (let i = 0; i < count; i++) {
+    // random direction using spherical coordinates
+    const u = Math.random(); // 0–1
+    const v = Math.random(); // 0–1
+    const theta = 2 * Math.PI * u;        // azimuthal
+    const phi = Math.acos(2 * v - 1);     // polar
+
+    p.setFromSphericalCoords(radius, phi, theta);
+    p.add(center); // shift to sphere center
+
+    pts.push(p.clone());
+  }
+
+  return pts;
 }
 
 // ---------- Turtle interpreter ----------
@@ -73,6 +93,7 @@ export function buildLSystemTree(
     position,
     leaves,
     branches,
+    fruits,
     axiom,
     rules,
     iterations = 3,
@@ -82,6 +103,14 @@ export function buildLSystemTree(
     radiusDecay = 0.86,
     leafDistFromRoot = 2, 
 ) {
+
+    function makeLeaf(position, radius){
+        leaves.add(makeMatrix(position, radius), tree);
+        for(var p of randomPointsOnSphere(position, radius+0.1, 5)){
+            fruits.add(makeMatrix(p, 0.15), tree);
+        }
+    }
+
     var tree = {position, falling:false, dead:false, trunkRadius};
     const str = expandLSystem(axiom, rules, iterations);
 
@@ -108,7 +137,7 @@ export function buildLSystemTree(
             branches.add(cylinderBetween(tmp, end, radius), tree);
             
             if (end.distanceTo(position) > leafDistFromRoot) {
-                leaves.add(makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8)), tree);
+                makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8));
             }
             break;
         }
@@ -154,7 +183,7 @@ export function buildLSystemTree(
         }
         case 'L': {
             turtle.getWorldPosition(end);
-            leaves.add(makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1)), tree);
+            makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1));
             break;
         }
         default:

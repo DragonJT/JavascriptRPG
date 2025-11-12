@@ -5,8 +5,7 @@ import { buildLSystemTree } from './lsystemTree.js';
 const raycaster = new THREE.Raycaster();
 const aimNDC = new THREE.Vector2(0, 0);
 
-class InstancedObject
-{
+class InstancedObject{
     constructor(){
         this.matrices = [];
         this.ids = [];
@@ -43,6 +42,7 @@ class InstancedObject
 const TREES = [];
 const leaves = new InstancedObject();
 const branches = new InstancedObject();
+const fruits = new InstancedObject();
 
 function raycast(camera, mousex, mousey) {
     var leaf = leaves.raycast(camera, mousex, mousey);
@@ -80,13 +80,13 @@ const _Q  = new THREE.Quaternion();
 function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
 
 function updateFallingTrees(dt) {
+    var updated = false;
     for (const T of TREES) {
         if(!T.falling || T.dead) continue;
         T.fall.t = Math.min(1, T.fall.t + dt / T.fall.duration);
 
         const theta = easeOutCubic(T.fall.t) * T.fall.angle;
         _Q.setFromAxisAngle(T.fall.axis, theta);
-        // W = T(pivot) * R(axis,theta) * T(-pivot)
         _T.makeTranslation(T.position.x, 0, T.position.z);
         _Ti.makeTranslation(-T.position.x, 0, -T.position.z);
         _R.makeRotationFromQuaternion(_Q);
@@ -104,14 +104,23 @@ function updateFallingTrees(dt) {
                 leaves.inst.setMatrixAt(i, Mout);
             }
         }
+        for(var i=0;i<fruits.matrices.length;i++){
+            if(fruits.ids[i] == T){
+                const Mout = _W.clone().multiply(fruits.matrices[i]);
+                fruits.inst.setMatrixAt(i, Mout);
+            }
+        }
+        updated = true;
         
-        branches.inst.instanceMatrix.needsUpdate = true;
-        leaves.inst.instanceMatrix.needsUpdate = true;
-
         if (T.fall.t >= 1) {
             T.dead = true;
             T.fall = null;
         }
+    }
+    if(updated){
+        branches.inst.instanceMatrix.needsUpdate = true;
+        leaves.inst.instanceMatrix.needsUpdate = true;
+        fruits.inst.instanceMatrix.needsUpdate = true;
     }
 }
 
@@ -135,7 +144,7 @@ export function addTrees(scene, count = 300, planeSize = 200) {
     for (let i = 0; i < count; i++) {
         const x = THREE.MathUtils.randFloat(-half, half);
         const z = THREE.MathUtils.randFloat(-half, half);
-        TREES.push(buildLSystemTree(new THREE.Vector3(x, 0, z), leaves, branches, 'F', rulesLeafy, 4, 28, 1.1, 0.3, 0.84, 3));
+        TREES.push(buildLSystemTree(new THREE.Vector3(x, 0, z), leaves, branches, fruits, 'F', rulesLeafy, 4, 28, 1.1, 0.3, 0.84, 3));
     }
 
     const branchGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
@@ -146,8 +155,9 @@ export function addTrees(scene, count = 300, planeSize = 200) {
     const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
     leaves.create(scene, leavesGeo, leavesMat, true, true);
 
-    //const fruitGeo = new THREE.SphereGeometry(1, 16, 16); // base radius=1, scale per instance
-    //const fruitMat = new THREE.MeshStandardMaterial({ color: 0xd44a2a, metalness: 0, roughness: 0.9 });
+    const fruitGeo = new THREE.SphereGeometry(1, 16, 16); // base radius=1, scale per instance
+    const fruitMat = new THREE.MeshStandardMaterial({ color: 0xd44a2a, metalness: 0, roughness: 0.9 });
+    fruits.create(scene, fruitGeo, fruitMat, true, true);
 
     return {raycast, startTreeFall, updateFallingTrees};
 }

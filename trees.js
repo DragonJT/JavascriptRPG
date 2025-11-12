@@ -2,35 +2,61 @@
 import * as THREE from 'three';
 import { buildLSystemTree } from './lsystemTree.js';
 
-const TREES = [];
-const BRANCH_IDS = [];
-const LEAVES_IDS = [];
-var branchesInst = undefined;
-var leavesInst = undefined;
-
 const raycaster = new THREE.Raycaster();
-const aimNDC = new THREE.Vector2(0, 0); // center of screen
+const aimNDC = new THREE.Vector2(0, 0);
 
-function raycast(camera, mousex, mousey) {
-    aimNDC.set((mousex/innerWidth)*2-1, -(mousey/innerHeight)*2+1);
-    raycaster.setFromCamera(aimNDC, camera);
-    var hits = raycaster.intersectObject(branchesInst, false);
-    if (!hits.length){
-        hits = raycaster.intersectObject(leavesInst, false);
-        if(!hits.length) return null;
-        return LEAVES_IDS[hits[0].instanceId];
+class InstancedObject
+{
+    constructor(){
+        this.matrices = [];
+        this.ids = [];
     }
-    return BRANCH_IDS[hits[0].instanceId];
+
+    add(matrix, obj){
+        this.matrices.push(matrix);
+        this.ids.push(obj);
+    }
+
+    create(scene, geo, mat, castShadow, receiveShadow){
+        this.inst = new THREE.InstancedMesh(geo, mat, this.matrices.length);
+        this.inst.castShadow = castShadow;
+        this.inst.receiveShadow = receiveShadow;
+        this.inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.inst.instanceMatrix.needsUpdate = true;
+        scene.add(this.inst);
+        for(var i = 0; i < this.matrices.length; i++){
+            this.inst.setMatrixAt(i, this.matrices[i]);
+        }
+    }
+
+    raycast(camera, mousex, mousey){
+        aimNDC.set((mousex/innerWidth)*2-1, -(mousey/innerHeight)*2+1);
+        raycaster.setFromCamera(aimNDC, camera);
+        var hits = raycaster.intersectObject(this.inst, false);
+        if (hits.length > 0){
+            return this.ids[hits[0].instanceId];
+        }
+        return undefined;
+    }
 }
 
+const TREES = [];
+const leaves = new InstancedObject();
+const branches = new InstancedObject();
+
+function raycast(camera, mousex, mousey) {
+    var leaf = leaves.raycast(camera, mousex, mousey);
+    if(leaf!=undefined) return leaf;
+    return branches.raycast(camera, mousex, mousey);
+}
 
 const Y_UP = new THREE.Vector3(0,1,0);
 const tmpDir = new THREE.Vector3();
 const tmpAxis = new THREE.Vector3();
 
 function startTreeFall(player, tree) {
-    tmpDir.x = tree.x - player.mesh.position.x;
-    tmpDir.z = tree.z - player.mesh.position.z;
+    tmpDir.x = tree.position.x - player.mesh.position.x;
+    tmpDir.z = tree.position.z - player.mesh.position.z;
     tmpDir.y = 0;
     if (tmpDir.lengthSq() < 1e-6) tmpDir.set(0,0,-1);
     tmpDir.normalize();
@@ -40,7 +66,7 @@ function startTreeFall(player, tree) {
     tree.fall = {
         t: 0,
         duration: 2, // seconds
-        angle:(Math.PI / 2) * 0.7,
+        angle:(Math.PI / 2) * 0.85,
         axis:axis.clone(),
     };
 }
@@ -54,38 +80,33 @@ const _Q  = new THREE.Quaternion();
 function easeOutCubic(x){ return 1 - Math.pow(1 - x, 3); }
 
 function updateFallingTrees(dt) {
-    var bi = 0;
-    var li = 0;
     for (const T of TREES) {
-        if (!T.falling || T.dead){
-            bi+=T.branches.length;
-            li+=T.leaves.length;
-            continue;
-        } 
-        //console.log(T);
+        if(!T.falling || T.dead) continue;
         T.fall.t = Math.min(1, T.fall.t + dt / T.fall.duration);
 
         const theta = easeOutCubic(T.fall.t) * T.fall.angle;
         _Q.setFromAxisAngle(T.fall.axis, theta);
-
         // W = T(pivot) * R(axis,theta) * T(-pivot)
-        _T.makeTranslation(T.x, 0, T.z);
-        _Ti.makeTranslation(-T.x, 0, -T.z);
+        _T.makeTranslation(T.position.x, 0, T.position.z);
+        _Ti.makeTranslation(-T.position.x, 0, -T.position.z);
         _R.makeRotationFromQuaternion(_Q);
         _W.multiplyMatrices(_T, _R).multiply(_Ti);
 
-        for(var b of T.branches){
-            const Mout = _W.clone().multiply(b);
-            branchesInst.setMatrixAt(bi, Mout);
-            bi++;
+        for(var i=0;i<branches.matrices.length;i++){
+            if(branches.ids[i] == T){
+                const Mout = _W.clone().multiply(branches.matrices[i]);
+                branches.inst.setMatrixAt(i, Mout);
+            }
         }
-        for(var l of T.leaves){
-            const Mout = _W.clone().multiply(l);
-            leavesInst.setMatrixAt(li, Mout);
-            li++;
+        for(var i=0;i<leaves.matrices.length;i++){
+            if(leaves.ids[i] == T){
+                const Mout = _W.clone().multiply(leaves.matrices[i]);
+                leaves.inst.setMatrixAt(i, Mout);
+            }
         }
-        branchesInst.instanceMatrix.needsUpdate = true;
-        leavesInst.instanceMatrix.needsUpdate = true;
+        
+        branches.inst.instanceMatrix.needsUpdate = true;
+        leaves.inst.instanceMatrix.needsUpdate = true;
 
         if (T.fall.t >= 1) {
             T.dead = true;
@@ -114,50 +135,19 @@ export function addTrees(scene, count = 300, planeSize = 200) {
     for (let i = 0; i < count; i++) {
         const x = THREE.MathUtils.randFloat(-half, half);
         const z = THREE.MathUtils.randFloat(-half, half);
-        var trunkRadius = 0.3;
-        var {leaves, branches} = buildLSystemTree( new THREE.Vector3(x, 0, z), 'F', rulesLeafy, 4, 28, 1.1, trunkRadius, 0.84, 3);
-        TREES.push({x, z, branches, leaves, falling:false, dead:false, trunkRadius});
+        TREES.push(buildLSystemTree(new THREE.Vector3(x, 0, z), leaves, branches, 'F', rulesLeafy, 4, 28, 1.1, 0.3, 0.84, 3));
     }
 
-    var branchesLength = 0;
-    var leavesLength = 0;
-    for(var t of TREES){
-        branchesLength += t.branches.length;
-        leavesLength += t.leaves.length;
-    }
+    const branchGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+    const branchMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
+    branches.create(scene, branchGeo, branchMat, true, true);
 
-    const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
-    const cylMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-    branchesInst = new THREE.InstancedMesh(cylGeo, cylMat, branchesLength);
-    branchesInst.castShadow = true;
-    branchesInst.receiveShadow = true;
-    branchesInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    branchesInst.instanceMatrix.needsUpdate = true;
-    scene.add(branchesInst);
+    const leavesGeo = new THREE.SphereGeometry(1, 12, 12);
+    const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
+    leaves.create(scene, leavesGeo, leavesMat, true, true);
 
-    const sphereGeo = new THREE.SphereGeometry(1, 12, 12);
-    const sphereMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
-    leavesInst = new THREE.InstancedMesh(sphereGeo, sphereMat, leavesLength);
-    leavesInst.castShadow = true;
-    leavesInst.receiveShadow = true;
-    leavesInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    leavesInst.instanceMatrix.needsUpdate = true;
-    scene.add(leavesInst);
-
-    var bi = 0;
-    var li = 0;
-    for (var t of TREES) {
-        for(var b of t.branches){
-            branchesInst.setMatrixAt(bi, b);
-            BRANCH_IDS.push(t);
-            bi++;
-        }
-        for(var l of t.leaves){
-            leavesInst.setMatrixAt(li, l);
-            LEAVES_IDS.push(t);
-            li++;
-        }
-    }
+    //const fruitGeo = new THREE.SphereGeometry(1, 16, 16); // base radius=1, scale per instance
+    //const fruitMat = new THREE.MeshStandardMaterial({ color: 0xd44a2a, metalness: 0, roughness: 0.9 });
 
     return {raycast, startTreeFall, updateFallingTrees};
 }

@@ -64,11 +64,6 @@ Symbols (classic):
   f : move forward (no draw)
   + : yaw +angle
   - : yaw -angle
-  & : pitch +angle
-  ^ : pitch -angle
-  \ : roll +angle
-  / : roll -angle
-  | : yaw 180°
   [ : push turtle state (position+orientation+thickness)
   ] : pop turtle state
   L : place leaf
@@ -76,97 +71,96 @@ Symbols (classic):
 */
 export function buildLSystemTree(
     position,
+    leaves,
+    branches,
     axiom,
     rules,
     iterations = 3,
     angleDeg = 25,
     segmentLength = 1.2,
-    baseRadius = 0.22,
+    trunkRadius = 0.22,
     radiusDecay = 0.86,
     leafDistFromRoot = 2, 
 ) {
-  const str = expandLSystem(axiom, rules, iterations);
+    var tree = {position, falling:false, dead:false, trunkRadius};
+    const str = expandLSystem(axiom, rules, iterations);
 
-  const turtle = new THREE.Object3D();
-  turtle.position.copy(position);
-  turtle.up.set(0, 1, 0);
-  const stack = [];
+    const turtle = new THREE.Object3D();
+    turtle.position.copy(position);
+    turtle.up.set(0, 1, 0);
+    const stack = [];
 
-  let radius = baseRadius;
-  const step = segmentLength;
-  const ang = THREE.MathUtils.degToRad(angleDeg);
+    let radius = trunkRadius;
+    const step = segmentLength;
+    const ang = THREE.MathUtils.degToRad(angleDeg);
 
-  const tmp = new THREE.Vector3();
-  const end = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    const end = new THREE.Vector3();
+    for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        switch (c) {
+        case 'F': {
+            // draw forward
+            turtle.getWorldPosition(tmp);
+            turtle.translateY(step);
+            turtle.getWorldPosition(end);
 
-  const branches = [];
-  const leaves = [];
-
-  for (let i = 0; i < str.length; i++) {
-    const c = str[i];
-    switch (c) {
-      case 'F': {
-        // draw forward
-        turtle.getWorldPosition(tmp);
-        turtle.translateY(step);
-        turtle.getWorldPosition(end);
-
-        branches.push(cylinderBetween(tmp, end, radius));
-        
-        if (end.distanceTo(position) > leafDistFromRoot) {
-            leaves.push(makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8)));
+            branches.add(cylinderBetween(tmp, end, radius), tree);
+            
+            if (end.distanceTo(position) > leafDistFromRoot) {
+                leaves.add(makeLeaf(end, THREE.MathUtils.randFloat(0.4, 0.8)), tree);
+            }
+            break;
         }
-        break;
-      }
-      case 'f': {
-        turtle.translateY(step);
-        break;
-      }
-      case '+': 
-        turtle.rotateY(Math.random()* Math.PI * 2);
-        turtle.rotateZ( ang); 
-        break; // yaw+ (around Z with our “up on Y” turtle)
-      case '-': 
-        turtle.rotateY(Math.random()* Math.PI * 2);
-        turtle.rotateZ(-ang);
-        break;
-      /*case '&': turtle.rotateX( ang); break; // pitch+
-      case '^': turtle.rotateX(-ang); break;
-      case '\\': turtle.rotateY( ang); break; // roll+
-      case '/':  turtle.rotateY(-ang); break;
-      case '|':  turtle.rotateZ(Math.PI); break;*/
-
-      case '[': {
-        stack.push({
-          pos: turtle.position.clone(),
-          quat: turtle.quaternion.clone(),
-          rad: radius
-        });
-        break;
-      }
-      case ']': {
-        const s = stack.pop();
-        if (s) {
-          turtle.position.copy(s.pos);
-          turtle.quaternion.copy(s.quat);
-          radius = s.rad;
+        case 'f': {
+            turtle.translateY(step);
+            break;
         }
-        break;
-      }
-      case 'R': {
-        radius *= radiusDecay;
-        radius = Math.max(0.03, radius);
-        break;
-      }
-      case 'L': {
-        turtle.getWorldPosition(end);
-        leaves.push(makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1)));
-        break;
-      }
-      default:
-        // ignore unknown symbols
-        break;
+        case '+': 
+            turtle.rotateY(Math.random()* Math.PI * 2);
+            turtle.rotateZ( ang); 
+            break; // yaw+ (around Z with our “up on Y” turtle)
+        case '-': 
+            turtle.rotateY(Math.random()* Math.PI * 2);
+            turtle.rotateZ(-ang);
+            break;
+        /*case '&': turtle.rotateX( ang); break; // pitch+
+        case '^': turtle.rotateX(-ang); break;
+        case '\\': turtle.rotateY( ang); break; // roll+
+        case '/':  turtle.rotateY(-ang); break;
+        case '|':  turtle.rotateZ(Math.PI); break;*/
+
+        case '[': {
+            stack.push({
+            pos: turtle.position.clone(),
+            quat: turtle.quaternion.clone(),
+            rad: radius
+            });
+            break;
+        }
+        case ']': {
+            const s = stack.pop();
+            if (s) {
+            turtle.position.copy(s.pos);
+            turtle.quaternion.copy(s.quat);
+            radius = s.rad;
+            }
+            break;
+        }
+        case 'R': {
+            radius *= radiusDecay;
+            radius = Math.max(0.03, radius);
+            break;
+        }
+        case 'L': {
+            turtle.getWorldPosition(end);
+            leaves.add(makeLeaf(end, THREE.MathUtils.randFloat(0.5, 1.1)), tree);
+            break;
+        }
+        default:
+            // ignore unknown symbols
+            break;
+        }
     }
-  }
-  return {leaves, branches};
+    return tree;
 }

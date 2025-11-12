@@ -28,13 +28,12 @@ addEventListener('keyup', e=>{
 
 addEventListener('contextmenu', e=>{
     const tree = trees.raycast(camera, e.clientX, e.clientY);
-    if(tree!=null){
+    if(tree){
         overlay.createMenu(e, e.clientX-100,e.clientY-50,200,200, ["chop", "go"], v => {
             if(v == 'chop') player.setTargetTree(tree);
             if(v == 'go') console.log("go");
         });
     }
-
 });
 
 const raycaster = new THREE.Raycaster();

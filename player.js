@@ -45,8 +45,8 @@ export class Player {
     update() {
         if(this.target.kind == 'none') return;
         if(this.target.kind == 'tree'){
-            this.target.position.x = this.target.tree.x;
-            this.target.position.z = this.target.tree.z;
+            this.target.position.x = this.target.tree.position.x;
+            this.target.position.z = this.target.tree.position.z;
         } 
         this.ring.position.x = this.target.position.x;
         this.ring.position.z = this.target.position.z;
